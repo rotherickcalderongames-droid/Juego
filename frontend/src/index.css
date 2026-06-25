@@ -1,0 +1,143 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #050d06;
+    color: #00ff66;
+    font-family: 'Share Tech Mono', ui-monospace, monospace;
+    text-shadow: 0 0 2px rgba(0, 255, 102, 0.3);
+  }
+}
+
+/* CRT scanlines effect overlay */
+.crt-screen::before {
+  content: " ";
+  display: block;
+  position: absolute;
+  top: 0; left: 0; bottom: 0; right: 0;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.3) 50%);
+  z-index: 9999;
+  background-size: 100% 3px;
+  pointer-events: none;
+}
+
+/* CRT screen flicker */
+.crt-flicker {
+  animation: flicker 0.25s infinite;
+}
+
+@keyframes flicker {
+  0% { opacity: 0.985; }
+  50% { opacity: 0.999; }
+  100% { opacity: 0.990; }
+}
+
+/* Dynamic glow utilities */
+.glow-green {
+  text-shadow: 0 0 5px rgba(0, 255, 102, 0.8), 0 0 15px rgba(0, 255, 102, 0.4);
+}
+
+.glow-red {
+  text-shadow: 0 0 5px rgba(255, 42, 42, 0.8), 0 0 15px rgba(255, 42, 42, 0.4);
+}
+
+.glow-yellow {
+  text-shadow: 0 0 5px rgba(255, 204, 0, 0.8), 0 0 15px rgba(255, 204, 0, 0.4);
+}
+
+.glow-border-green {
+  box-shadow: 0 0 8px rgba(0, 255, 102, 0.5), inset 0 0 8px rgba(0, 255, 102, 0.3);
+}
+
+.glow-border-red {
+  box-shadow: 0 0 8px rgba(255, 42, 42, 0.5), inset 0 0 8px rgba(255, 42, 42, 0.3);
+}
+
+/* CRT scanline line moving downwards */
+.scanline-animation {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 10px;
+  background: rgba(0, 255, 102, 0.05);
+  box-shadow: 0 0 10px rgba(0, 255, 102, 0.1);
+  pointer-events: none;
+  z-index: 100;
+  animation: scanlineMove 6s linear infinite;
+}
+
+@keyframes scanlineMove {
+  0% {
+    top: -10px;
+  }
+  100% {
+    top: 100%;
+  }
+}
+
+/* Webkit Scrollbars styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #001a08;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #00ff66;
+  box-shadow: 0 0 4px rgba(0, 255, 102, 0.8);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00aa44;
+}
+
+/* Pixelate avatar style */
+.pixelated {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* Keyboard typing sound click effect animations */
+.cursor-blink::after {
+  content: "▋";
+  animation: cursorBlink 1s step-start infinite;
+}
+
+@keyframes cursorBlink {
+  50% { opacity: 0; }
+}
+
+/* Floating animation for Antigravity status */
+.antigravity-float {
+  animation: floatEffect 3s ease-in-out infinite;
+}
+
+@keyframes floatEffect {
+  0% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-12px) rotate(1.5deg);
+  }
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+}
+
+/* Shake effect for critical state changes */
+.crt-shake {
+  animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+@keyframes shake {
+  10%, 90% { transform: translate3d(-1px, 0, 0); }
+  20%, 80% { transform: translate3d(2px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-3px, 0, 0); }
+  40%, 60% { transform: translate3d(3px, 0, 0); }
+}
