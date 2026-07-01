@@ -35,6 +35,8 @@ app.get('/api/game/active', auth_middleware_1.authenticateJWT, game_controller_1
 app.post('/api/game/start', auth_middleware_1.authenticateJWT, game_controller_1.startGame);
 app.post('/api/game/command', auth_middleware_1.authenticateJWT, game_controller_1.processCommand);
 app.get('/api/game/endings', auth_middleware_1.authenticateJWT, game_controller_1.getUnlockedEndings);
+app.get('/api/game/shop/items', auth_middleware_1.authenticateJWT, game_controller_1.getShopItems);
+app.post('/api/game/shop/buy', auth_middleware_1.authenticateJWT, game_controller_1.buyItem);
 // Admin Routes
 app.get('/api/admin/users', auth_middleware_1.authenticateJWT, admin_controller_1.getAllUsers);
 app.get('/api/admin/roles', auth_middleware_1.authenticateJWT, admin_controller_1.getAllRoles);

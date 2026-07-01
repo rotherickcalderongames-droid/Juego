@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Terminal } from './components/Terminal';
 import { StatsPanel } from './components/StatsPanel';
 import { AvatarDisplay } from './components/AvatarDisplay';
+import { ShopPanel } from './components/ShopPanel';
 import { LogOut, BookOpen, User as UserIcon, Lock, Mail, Play, Shield } from 'lucide-react';
 import { AdminPanel } from './components/AdminPanel';
 import { useSpeech } from './hooks/useSpeech';
@@ -69,6 +70,7 @@ export default function App() {
   const [avatarConfig, setAvatarConfig] = useState<any>(null);
   const [implants, setImplants] = useState<string[]>([]);
   const [narrative, setNarrative] = useState<Narrative | null>(null);
+  const [activeSidebarTab, setActiveSidebarTab] = useState<'stats' | 'shop'>('stats');
   const [antigravityActive, setAntigravityActive] = useState(false);
   const [unlockedEndings, setUnlockedEndings] = useState<Ending[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -261,6 +263,7 @@ export default function App() {
       setAvatarConfig(data.avatarConfig || null);
       setAntigravityActive(data.antigravityActive);
       setNarrative(data.narrative);
+      setImplants(data.implants || []);
 
       // Refresh unlocked endings list if game is over
       if (data.narrative.isGameOver) {
@@ -270,6 +273,42 @@ export default function App() {
     } catch (err: any) {
       console.error(err);
       throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleBuyItem = async (itemId: string) => {
+    if (!token || !sessionId) return;
+    setIsLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/game/shop/buy`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ sessionId, itemId })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Fallo al comprar implante');
+
+      setStats(data.stats);
+      setAvatarUrl(data.avatarUrl);
+      setAvatarConfig(data.avatarConfig || null);
+      setImplants(data.implants || []);
+      
+      speak(data.message || "Implante instalado correctamente.");
+      
+      if (narrative) {
+        setNarrative({
+          ...narrative,
+          situationText: `[TIENDA QUANTUM] Compra e instalación completada.\n\nNuevo saldo: ₵ ${data.stats.credits}\nEstadísticas actualizadas con éxito.\nImplante activo en tu cromo neural.`,
+          audioNarrativeText: "Instalación de cromo completada con éxito."
+        });
+      }
+    } catch (err: any) {
+      alert(`Error de compra: ${err.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -525,12 +564,41 @@ export default function App() {
               sanity={stats.sanity} 
             />
 
-            {/* Numeric Stats status widget */}
-            <StatsPanel 
-              stats={stats} 
-              implants={implants} 
-              antigravityActive={antigravityActive} 
-            />
+            {/* Tab Toggles */}
+            {sessionId && (
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setActiveSidebarTab('stats')}
+                  className={`flex-1 py-1.5 text-xs font-mono font-bold border transition-all ${activeSidebarTab === 'stats' ? 'bg-crt-green/20 border-crt-green text-crt-green glow-green' : 'border-crt-green/30 text-crt-dim hover:bg-crt-green/10'}`}
+                >
+                  📊 ESTADO HUD
+                </button>
+                <button 
+                  onClick={() => setActiveSidebarTab('shop')}
+                  className={`flex-1 py-1.5 text-xs font-mono font-bold border transition-all ${activeSidebarTab === 'shop' ? 'bg-crt-green/20 border-crt-green text-crt-green glow-green' : 'border-crt-green/30 text-crt-dim hover:bg-crt-green/10'}`}
+                >
+                  🛒 CIBER-TIENDA
+                </button>
+              </div>
+            )}
+
+            {/* Sidebar content based on active tab */}
+            {activeSidebarTab === 'stats' || !sessionId ? (
+              <StatsPanel 
+                stats={stats} 
+                implants={implants} 
+                antigravityActive={antigravityActive} 
+              />
+            ) : (
+              <ShopPanel
+                sessionId={sessionId}
+                token={token}
+                playerCredits={stats.credits}
+                installedImplants={implants}
+                onBuyItem={handleBuyItem}
+                isLoading={isLoading}
+              />
+            )}
 
             {/* Unlocked Endings list panel */}
             <div className="p-4 border-2 border-crt-green bg-crt-darkgreen/40 glow-border-green flex-1 min-h-[160px]">

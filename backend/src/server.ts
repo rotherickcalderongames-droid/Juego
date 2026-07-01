@@ -8,7 +8,7 @@ dotenv.config();
 import { connectDB } from './services/db.service';
 import { connectSQL } from './services/mssql.service';
 import { register, login, getAuditHistory } from './controllers/auth.controller';
-import { startGame, processCommand, getUnlockedEndings, getActiveSession } from './controllers/game.controller';
+import { startGame, processCommand, getUnlockedEndings, getActiveSession, buyItem, getShopItems } from './controllers/game.controller';
 import { getAllUsers, getAllRoles, updateUserRole, updateUserStatus, deleteUser, createUser } from './controllers/admin.controller';
 import { authenticateJWT } from './middleware/auth.middleware';
 
@@ -37,6 +37,8 @@ app.get('/api/game/active', authenticateJWT as any, getActiveSession as any);
 app.post('/api/game/start', authenticateJWT as any, startGame as any);
 app.post('/api/game/command', authenticateJWT as any, processCommand as any);
 app.get('/api/game/endings', authenticateJWT as any, getUnlockedEndings as any);
+app.get('/api/game/shop/items', authenticateJWT as any, getShopItems as any);
+app.post('/api/game/shop/buy', authenticateJWT as any, buyItem as any);
 
 // Admin Routes
 app.get('/api/admin/users', authenticateJWT as any, getAllUsers as any);

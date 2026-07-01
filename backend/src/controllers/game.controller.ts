@@ -401,6 +401,7 @@ export async function processCommand(req: IAuthenticatedRequest, res: Response) 
       },
       avatarUrl: session.avatarUrl,
       avatarConfig: session.dynamicState?.avatarConfig || null,
+      implants: session.dynamicState?.implants || [],
       antigravityActive: antigravityStatus,
       narrative: {
         situationText: gameResponse.situationText,
@@ -458,5 +459,175 @@ export async function getActiveSession(req: IAuthenticatedRequest, res: Response
     });
   } catch (error: any) {
     return res.status(500).json({ error: 'Error al verificar partida activa', details: error.message });
+  }
+}
+
+// =========================================================================
+// 4. CIBER-TIENDA DE IMPLANTES (SHOP SYSTEM)
+// =========================================================================
+export interface IShopItem {
+  id: string;
+  name: string;
+  description: string;
+  cost: number;
+  effect: {
+    sanity?: number;
+    compliance?: number;
+    credits?: number;
+    netPulse?: number;
+  };
+}
+
+export const SHOP_ITEMS: IShopItem[] = [
+  {
+    id: 'filtro_neural',
+    name: 'Filtro Neural Antiviral',
+    description: 'Purga procesos corruptos de tu red. Restaura Sanidad (+20) inmediatamente.',
+    cost: 120,
+    effect: { sanity: 20 }
+  },
+  {
+    id: 'bypass_red',
+    name: 'Bypass de Red UPDS',
+    description: 'Bypassea controles corporativos de la red. Restaura Pulso de Red (+25).',
+    cost: 150,
+    effect: { netPulse: 25 }
+  },
+  {
+    id: 'inyector_adrenalina',
+    name: 'Inyector de Adrenalina',
+    description: 'Inyección rápida de hormonas. Restaura Sanidad (+15) y Pulso de Red (+10).',
+    cost: 90,
+    effect: { sanity: 15, netPulse: 10 }
+  },
+  {
+    id: 'cifrador_creditos',
+    name: 'Cifrador de Cripto-Créditos',
+    description: 'Desvía transacciones corporativas. Otorga Créditos (+50) a costa de Cumplimiento (-15).',
+    cost: 40,
+    effect: { credits: 50, compliance: -15 }
+  },
+  {
+    id: 'optimizador_cromo',
+    name: 'Optimizador de Cromo',
+    description: 'Sincroniza y repara implantes. Restaura Sanidad (+10), Cumplimiento (+10) y Pulso de Red (+10).',
+    cost: 180,
+    effect: { sanity: 10, compliance: 10, netPulse: 10 }
+  }
+];
+
+export async function getShopItems(req: Request, res: Response) {
+  return res.status(200).json(SHOP_ITEMS);
+}
+
+export async function buyItem(req: IAuthenticatedRequest, res: Response) {
+  const userId = req.user?.userId;
+  const { sessionId, itemId } = req.body;
+  const ipAddress = req.ip || req.socket.remoteAddress || '127.0.0.1';
+
+  if (userId === undefined || userId === null) {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  if (!sessionId || !itemId) {
+    return res.status(400).json({ error: 'Faltan campos obligatorios: sessionId, itemId' });
+  }
+
+  try {
+    const pool = getPool();
+
+    // Find the item in the catalog
+    const item = SHOP_ITEMS.find(i => i.id === itemId);
+    if (!item) {
+      return res.status(404).json({ error: 'Implante no encontrado en el catálogo de la tienda.' });
+    }
+
+    // Find the session in MongoDB
+    const session = await Session.findById(sessionId);
+    if (!session) {
+      return res.status(404).json({ error: 'Sesión de juego no encontrada' });
+    }
+    if (session.status === 'FINISHED') {
+      return res.status(400).json({ error: 'Esta partida ya ha finalizado' });
+    }
+
+    // Check credits
+    if (session.credits < item.cost) {
+      return res.status(400).json({ error: `Créditos insuficientes. Requieres ${item.cost} créditos.` });
+    }
+
+    // Deduct cost and apply effects
+    session.credits -= item.cost;
+    
+    const sanityChange = item.effect.sanity || 0;
+    const complianceChange = item.effect.compliance || 0;
+    const creditsChange = item.effect.credits || 0;
+    const netPulseChange = item.effect.netPulse || 0;
+
+    session.sanity = Math.max(0, Math.min(100, session.sanity + sanityChange));
+    session.compliance = Math.max(0, Math.min(100, session.compliance + complianceChange));
+    session.credits += creditsChange;
+    session.netPulse = Math.max(0, Math.min(100, session.netPulse + netPulseChange));
+
+    // Add to implants in dynamicState
+    if (!session.dynamicState) {
+      session.dynamicState = {};
+    }
+    const currentImplants: string[] = session.dynamicState.implants || [];
+    if (!currentImplants.includes(item.name)) {
+      currentImplants.push(item.name);
+    }
+    session.dynamicState = {
+      ...session.dynamicState,
+      implants: currentImplants
+    };
+
+    // Save session
+    await session.save();
+
+    // Log the transaction in MongoDB DecisionLog
+    const pastLogs = await DecisionLog.find({ sessionId });
+    const stepNumber = pastLogs.length > 0 ? Math.max(...pastLogs.map(l => l.stepNumber)) + 1 : 1;
+
+    const purchaseLog = new DecisionLog({
+      sessionId: session._id,
+      stepNumber,
+      commandTyped: `COMPRA:${item.id.toUpperCase()}`,
+      situationText: `[CONEXIÓN TIENDA] Compra e instalación exitosa del implante: ${item.name}. ${item.description}`,
+      statsChanges: {
+        sanity: sanityChange,
+        compliance: complianceChange,
+        credits: creditsChange - item.cost,
+        netPulse: netPulseChange
+      }
+    });
+    await purchaseLog.save();
+
+    // SQL Server Session Audit Log
+    await pool.request()
+      .input('usuarioId', sql.Int, userId)
+      .input('eventType', sql.VarChar, 'COMPRA_IMPLANTE')
+      .input('detail', sql.VarChar, `Comprado implante: ${item.name} (${item.id}) por ${item.cost} créditos. Sesión ID: ${session._id}`)
+      .input('ipAddress', sql.VarChar, ipAddress)
+      .query(`
+        INSERT INTO AuditoriaSesiones (UsuarioID, TipoEvento, Detalle, FechaEvento, DireccionIP)
+        VALUES (@usuarioId, @eventType, @detail, GETDATE(), @ipAddress)
+      `);
+
+    return res.status(200).json({
+      sessionId: session._id,
+      stats: {
+        sanity: session.sanity,
+        compliance: session.compliance,
+        credits: session.credits,
+        netPulse: session.netPulse
+      },
+      avatarUrl: session.avatarUrl,
+      avatarConfig: session.dynamicState?.avatarConfig || null,
+      implants: session.dynamicState?.implants || [],
+      message: `Implante ${item.name} instalado correctamente.`
+    });
+  } catch (error: any) {
+    console.error('[Game Controller] Buy item error:', error);
+    return res.status(500).json({ error: 'Error del servidor al procesar la compra', details: error.message });
   }
 }

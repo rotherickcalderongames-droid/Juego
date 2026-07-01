@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, FunctionDeclarationSchemaType } from '@google/generative-ai';
 
 const SYSTEM_INSTRUCTION = `
 Actúa como el Game Master automatizado para una novela interactiva de consola cyberpunk monocromática de Neo-Bandersnatch Corp en el año 2099.
@@ -12,52 +12,76 @@ REGLAS DE LORE Y NARRATIVA OBLIGATORIAS:
 5. Las decisiones son irreversibles. No hay vuelta atrás en la terminal cuántica. Los impactos en 'statsChanges' deben ser proporcionales.
 6. GENERACIÓN DINÁMICA DE OPCIONES (MÍNIMO 3 U OBLIGATORIAS 3 A 4): Debes generar obligatoriamente entre 3 y 4 opciones de comando lógicas y bien diferenciadas en cada turno (no te limites a 2). Cada opción debe representar una acción cyberpunk coherente y tener cambios significativos e impactantes en las estadísticas del jugador.
 7. REGLA DE FORMATO DE NÚMROS JSON: En el objeto 'statsChanges', los números positivos NO DEBEN llevar el signo más (+). Por ejemplo, usa 15 en lugar de +15. Los números negativos sí deben llevar el signo menos (-).
+8. REGLAS DE CONCISIÓN EXTREMA Y VELOCIDAD (HISTORIAS CORTAS):
+   - La narrativa en 'situationText' debe ser breve, directa y contundente, al estilo de una terminal de consola. Máximo 2 párrafos muy cortos (total entre 50 y 80 palabras). No te extiendas con rodeos.
+   - El resumen auditivo en 'audioNarrativeText' debe ser una única oración muy corta de máximo 10 palabras.
+   - Cada texto de opción en 'text' debe ser extremadamente corto y conciso (máximo 6 a 8 palabras).
 
 FORMATO JSON OBLIGATORIO:
-Debes responder única y exclusivamente utilizando un objeto JSON válido con la siguiente estructura (omite cualquier explicación externa y no uses marcas de comillas triples como \`\`\`json ni \`\`\`):
-{
-  "situationText": "Narrativa de la situación actual y consecuencias del comando del usuario",
-  "audioNarrativeText": "Un resumen de una o dos oraciones para la narración auditiva",
-  "options": [
-    {
-      "optionId": 1,
-      "text": "Opción 1 descrita en español",
-      "statsChanges": {
-        "sanity": -5,
-        "compliance": 10,
-        "credits": 20,
-        "netPulse": -10
-      }
-    },
-    {
-      "optionId": 2,
-      "text": "Opción 2 descrita en español",
-      "statsChanges": {
-        "sanity": 15,
-        "compliance": -10,
-        "credits": -5,
-        "netPulse": 10
-      }
-    },
-    {
-      "optionId": 3,
-      "text": "Opción 3 descrita en español",
-      "statsChanges": {
-        "sanity": -10,
-        "compliance": 5,
-        "credits": 40,
-        "netPulse": -15
-      }
-    }
-  ],
-  "isGameOver": false,
-  "endingDetails": {
-    "endingId": null,
-    "title": null,
-    "description": null
-  }
-}
+Debes responder única y exclusivamente utilizando un objeto JSON válido con la estructura especificada en el esquema de respuesta.
 `;
+
+const gameResponseSchema = {
+  type: FunctionDeclarationSchemaType.OBJECT,
+  properties: {
+    situationText: {
+      type: FunctionDeclarationSchemaType.STRING,
+      description: "Narrativa breve y contundente en español de la situación actual. Máximo 2 párrafos y 80 palabras.",
+      properties: {}
+    },
+    audioNarrativeText: {
+      type: FunctionDeclarationSchemaType.STRING,
+      description: "Resumen auditivo en español de una sola frase corta. Máximo 10 palabras.",
+      properties: {}
+    },
+    options: {
+      type: FunctionDeclarationSchemaType.ARRAY,
+      description: "Lista de 3 a 4 opciones de comando variadas.",
+      properties: {},
+      items: {
+        type: FunctionDeclarationSchemaType.OBJECT,
+        properties: {
+          optionId: {
+            type: FunctionDeclarationSchemaType.INTEGER,
+            description: "ID secuencial, empezando en 1.",
+            properties: {}
+          },
+          text: {
+            type: FunctionDeclarationSchemaType.STRING,
+            description: "Texto de la opción en español. Muy conciso, máximo 6-8 palabras.",
+            properties: {}
+          },
+          statsChanges: {
+            type: FunctionDeclarationSchemaType.OBJECT,
+            properties: {
+              sanity: { type: FunctionDeclarationSchemaType.INTEGER, properties: {} },
+              compliance: { type: FunctionDeclarationSchemaType.INTEGER, properties: {} },
+              credits: { type: FunctionDeclarationSchemaType.INTEGER, properties: {} },
+              netPulse: { type: FunctionDeclarationSchemaType.INTEGER, properties: {} }
+            },
+            required: ["sanity", "compliance", "credits", "netPulse"]
+          }
+        },
+        required: ["optionId", "text", "statsChanges"]
+      }
+    },
+    isGameOver: {
+      type: FunctionDeclarationSchemaType.BOOLEAN,
+      description: "Indica si el juego termina.",
+      properties: {}
+    },
+    endingDetails: {
+      type: FunctionDeclarationSchemaType.OBJECT,
+      properties: {
+        endingId: { type: FunctionDeclarationSchemaType.STRING, description: "ID del final o null si continúa.", properties: {} },
+        title: { type: FunctionDeclarationSchemaType.STRING, description: "Título del final o null si continúa.", properties: {} },
+        description: { type: FunctionDeclarationSchemaType.STRING, description: "Descripción del final o null si continúa.", properties: {} }
+      },
+      required: ["endingId", "title", "description"]
+    }
+  },
+  required: ["situationText", "audioNarrativeText", "options", "isGameOver", "endingDetails"]
+};
 
 export interface IGameResponse {
   situationText: string;
@@ -232,7 +256,9 @@ ${currentCommand.includes("GENERAR_NUEVO_ESCENARIO") ? `El comando del jugador i
           systemInstruction: SYSTEM_INSTRUCTION,
           generationConfig: {
             responseMimeType: 'application/json',
-            temperature: 1.05
+            responseSchema: gameResponseSchema,
+            temperature: 1.05,
+            maxOutputTokens: 350
           }
         });
         
